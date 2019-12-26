@@ -17,7 +17,7 @@ TWALL = 6                              # Position of topmost wall.
 SPEEDF = 5                             # Scaling factor for initial velocities.
 g = 0 * (9.8 / 10) * np.array([0, -1]) # Acceleration due to gravity.
 
-FF = 1             # Fast forward factor
+FF = 1                # Fast forward factor
 FPS = 80              # Frames per second of animation.
 FRAME_DELTA = 1/(FPS) # Time between frames.
 
