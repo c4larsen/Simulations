@@ -10,137 +10,166 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-dt = 1/60
-g = (9.8 / 10) * np.array([0, -1])
+N = 30                                 # Number of balls.
+BALL_RADIUS = 0.1                      # Radius of balls.
+RWALL = 10                             # Position of rightmost wall.
+TWALL = 6                              # Position of topmost wall.
+SPEEDF = 5                             # Scaling factor for initial velocities.
+g = 0 * (9.8 / 10) * np.array([0, -1]) # Acceleration due to gravity.
 
+FF = 1             # Fast forward factor
+FPS = 80              # Frames per second of animation.
+FRAME_DELTA = 1/(FPS) # Time between frames.
+
+# Matrix for rotating 2d vector by 90 degrees.
 rot90 = np.zeros((2,2))
 rot90[0, 1] = -1
 rot90[1, 0] = 1
 
+# Reflect about x-axis.
 x_refl = np.zeros((2,2))
 x_refl[0, 0] = -1
 x_refl[1, 1] = 1
 
+# Reflect about y-axis
 y_refl = -1.0 * x_refl
 
-rwall = 10
-topwall = 6
-
-SPEEDF = 5
-
-
 def collision1d(m1, v1, m2, v2):
+    """ Returns final velocities in a 1d elastic collision.
+    
+    """
     v1_final = (1.0/(m1 + m2)) * (m2*(v2 - v1) + m1*v1 + m2*v2)
     v2_final = (1.0/(m1 + m2)) * (-m1 * (v2 - v1) + m1*v1 + m2*v2)
     return v1_final, v2_final
 
 def ball_collision(b1, b2, dt):
-    # get velocities of bodies
-    print("entered")
+    """ Corrects positions and velocities of overlapping balls for collisions.
+    
+    """
     m1 = b1.mass
     m2 = b2.mass
+    r1 = b1.radius
+    r2 = b2.radius
     x1 = b1.prevpos
     x2 = b2.prevpos
     v1 = b1.vel
     v2 = b2.vel
-    # calculate time since collision
     
     s = x1 - x2
     sdot = v1 - v2
     
-    # set up quadratic eqn to find time since collision
-    r1 = b1.radius
-    r2 = b2.radius
+    # Set up quadratic eqn to find time to collision from previous frame when 
+    # balls were not overlapping.
     a = np.dot(sdot, sdot)
     b = 2 * np.dot(s, sdot)
     c = np.dot(s, s) - (r1 + r2)**2
     
-    # solve quadratic
-    
     delta1 = (- b - np.sqrt(b**2 - 4*a*c))/(2*a)
     delta2 = (- b + np.sqrt(b**2 - 4*a*c))/(2*a)
     
+    # Collision happens at first instance of balls touching, so take minimum
+    # of solutions.
     deltat = np.minimum(delta1, delta2)
-    # positions at collision
+    
+    # Positions at collision.
     x1c = x1 + v1*deltat
     x2c = x2 + v2*deltat
+    
     sc = x1c - x2c
     
-    #tangential and normal direction unit vectors
+    # Normal direction unit vector at collision.
     norm = (1/(np.linalg.norm(sc))) * sc
-    # wrong: norm = tang[0]*rot90[:, 0] + tang[1]*rot90[:, 1]
     
-    # normal component of velocities
-    
+    # Normal component of velocities.
     v1n = np.dot(v1, norm)
     v2n = np.dot(v2, norm)
     
-    # calculate new normal velocities
+    # Calculate new normal velocities. Since velocities in tangential direction
+    # remain unchanged, 2d collision is reduced to a 1d collision in the 
+    # normal components of velocities.
     v1nf, v2nf = collision1d(m1, v1n, m2, v2n)
     
-    # get outgoing velocities
-    
+    # Outgoing velocities.
     v1f =  v1 -v1n*norm + v1nf*norm
     v2f  = v2 -v2n*norm + v2nf*norm
     
-    # update positions for current frame 
+    # Update positions and velocities for current frame.
     b1.pos[:] = x1 + (deltat)*v1 + (dt - deltat) * v1f
-    b1.vel = v1f
     b2.pos[:] = x2 + (deltat)*v2 + (dt - deltat) * v2f
-    b2.vel = v2f
-    print("done")
+    b1.vel[:] = v1f
+    b2.vel[:] = v2f
+
+def left_wall_collision(ball, wall_coord, dt):
+    """ Corrects position and velocity of ball after detection of collision 
+    with leftmost wall.
     
-def left_wall_collision(ball, wall_coord):
+    """
     x = ball.prevpos
     v = ball.vel
     r = ball.radius
     
-    # time since collision
+    # Time since collision from previous frame.
     delta_x_coord = wall_coord + r - x[0]
     deltat = delta_x_coord / v[0] 
     
+    # Reflect velocity about the x-axis.
     vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
 
-def right_wall_collision(ball, wall_coord):
+def right_wall_collision(ball, wall_coord, dt):
+    """ Corrects position and velocity of ball after detection of collision 
+    with rightmost wall.
+    
+    """
     x = ball.prevpos
     v = ball.vel
     r = ball.radius
     
-    # time since collision
+    # Time since collision from prev frame.
     delta_x_coord = wall_coord - r - x[0]
     deltat = delta_x_coord / v[0] 
     
+    # Reflect velocity about x-axis.
     vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
 
-def top_wall_collision(ball, wall_coord):
+def top_wall_collision(ball, wall_coord, dt):
+    """ Corrects position and velocity of ball after detection of collision 
+    with topmost wall.
+    
+    """
     x = ball.prevpos
     v = ball.vel
     r = ball.radius
     
-    # time since collision
+    # Time since collision.
     delta_y_coord = wall_coord - r - x[1]
     deltat = delta_y_coord / v[1] 
     
+    # Reflect velocity about y-axis.
     vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
     
-def bot_wall_collision(ball, wall_coord):
+def bot_wall_collision(ball, wall_coord, dt):
+    """ Corrects position and velocity of ball after detection of collision 
+    with lowest wall.
+    
+    """
     x = ball.prevpos
     v = ball.vel
     r = ball.radius
     
-    # time since collision
+    # Time since collision.
     delta_y_coord = wall_coord + r - x[1]
     deltat = delta_y_coord / v[1] 
     
+    # Reflect velocity about y-axis.
     vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
     
     ball.vel[:] = vf
@@ -164,40 +193,33 @@ class body:
         self.image = plt.Circle(self.pos, self.radius, color='#555555', fill=False)
         ax.add_artist(self.image)
         return self.image
-    
-    def updateball(self):
-        # self.image.center = self.pos
-        return self.image
-N = 5
+
+# Generate balls.
 balls = []
-BALL_RADIUS = 0.1
 for i in range(N):
-    balls.append(body(0.1, np.array([random.uniform(BALL_RADIUS, rwall - BALL_RADIUS), random.uniform(BALL_RADIUS, topwall - BALL_RADIUS)]), 
-                      np.array([SPEEDF * random.uniform(-1, 1), SPEEDF * random.uniform(-1, 1)]), BALL_RADIUS))      
-
-# =============================================================================
-# body1 = body(1.0 , np.array([1.0, 0.5]), np.array([5.0, 0.0]), 0.2)
-# body2 = body(1.0 , np.array([0.5, 1.0]), 3*np.array([-1, -0.5]), 0.2)
-# =============================================================================
-
+    balls.append(body(0.1, np.array([random.uniform(BALL_RADIUS, RWALL - BALL_RADIUS),
+                                     random.uniform(BALL_RADIUS, TWALL - BALL_RADIUS)]), 
+                                    SPEEDF * np.array([random.uniform(-1, 1),
+                                                       random.uniform(-1, 1)]),
+                                    BALL_RADIUS))      
 fig, ax = plt.subplots()
-time_text = ax.text(0.05, 0.95, '', transform=ax.transAxes)
-mean_y = 0.5
+
+# Draw walls.
 ax.axvline(x = 0)
-ax.axvline(x = rwall)
+ax.axvline(x = RWALL)
 ax.axhline(y = 0)
-ax.axhline(y = topwall)
+ax.axhline(y = TWALL)
 
-
-    
-# balls = [body1, body2]
-images = []
+# Time elapsed in simulation.
+time_text = ax.text(0.05, 0.95, '', transform=ax.transAxes)
 time_elapsed = 0
+
+images = [] # Stores artists to be updated during animation
 
 def init():
     global prevtime
-    ax.set_ylim(-0.5, topwall + 0.5)
-    ax.set_xlim(-0.5, rwall + 0.5)
+    ax.set_ylim(-0.5, TWALL + 0.5)
+    ax.set_xlim(-0.5, RWALL + 0.5)
     plt.gca().set_aspect('equal', adjustable='box')
     time_text.set_text('')
     
@@ -212,59 +234,41 @@ def init():
 def update(frame):
     global prevtime
     global time_elapsed
-    global mean_y
-    # display time elapsed in sim
     
-# =============================================================================
-#     body1.updateball()
-#     body2.updateball()
-# =============================================================================
     currtime = time.time()
-    dt = currtime - prevtime
-    time_elapsed += dt
-    time_text.set_text('Sim time: {:.1f}s, mean y: {:.2f}'.format(time_elapsed, mean_y))
+    dt = FF * (currtime - prevtime)
     prevtime = time.time()
+    time_elapsed += dt
+    time_text.set_text('Sim time: {:.1f}s'.format(time_elapsed))
     
-    # update positions of balls
+    # Update state of system ignoring collisions.
     for ball in balls:
         ball.physics(dt)
     
-    # account for collisions
-  
+    # Account for collisions.
     for i in range(len(balls)):
         b = balls[i]
         if (b.pos[0] < b.radius):
-            left_wall_collision(b, 0)
+            left_wall_collision(b, 0, dt)
             continue
-        elif (b.pos[0] > rwall - b.radius):
-            right_wall_collision(b, rwall)
+        elif (b.pos[0] > RWALL - b.radius):
+            right_wall_collision(b, RWALL, dt)
             continue
-        elif (b.pos[1] > topwall - b.radius):
-            top_wall_collision(b, topwall)
+        elif (b.pos[1] > TWALL - b.radius):
+            top_wall_collision(b, TWALL, dt)
             continue
         elif (b.pos[1] < b.radius):
-            bot_wall_collision(b, 0)
+            bot_wall_collision(b, 0, dt)
+            continue
         
         for j in range(i + 1, len(balls)):
             b2 = balls[j]
             
-            if (np.linalg.norm(b.pos - b2.pos) < b.radius + b2.radius):
+            if (np.dot(b.pos - b2.pos, b.pos - b2.pos) < (b.radius + b2.radius)**2):
                 ball_collision(b, b2, dt)
-# =============================================================================
-#                 b.pos = np.array([0, 0])
-#                 b2.pos = np.array([1, 0])
-#                 b.vel = np.array([0, 0])
-#                 b2.vel = np.array([0, 0])
-# =============================================================================
-    toty = 0
-    for ball in balls:
-        toty += ball.pos[1]
-        # ball.updateball()
-        # print(ball.pos)
-    mean_y = toty / N
     return images
 
-ani = FuncAnimation(fig, update, frames=1000, interval=10, init_func=init,
+ani = FuncAnimation(fig, update, frames=1000, interval=1000 * FRAME_DELTA , init_func=init,
                     blit=True)
 
 plt.show()
