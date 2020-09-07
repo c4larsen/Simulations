@@ -14,7 +14,7 @@ R0 = RADIUS + 6e5, np.pi/2
 X0, Y0 = R0[0]*np.cos(R0[1]), R0[0]*np.sin(R0[1])
 
 VCIRC = np.sqrt(G*MASS/R0[0])
-SPEEDFRAC = 1
+SPEEDFRAC = 1.1
 V0 = SPEEDFRAC*VCIRC, (R0[1] + np.pi/2)
 V0X, V0Y = V0[0]*np.cos(V0[1]), V0[0]*np.sin(V0[1])
 
