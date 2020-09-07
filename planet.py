@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+# Press up and down arrows to speed up / slow down the sim, and press t to turn trail on/off
+
 G = 6.6E-11
 MASS = 6E24
 RADIUS = 6E6
