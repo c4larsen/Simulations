@@ -10,15 +10,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+L = 1
 N = 30                                 # Number of balls.
-BALL_RADIUS = 0.1                      # Radius of balls.
-RWALL = 10                             # Position of rightmost wall.
-TWALL = 6                              # Position of topmost wall.
-SPEEDF = 5                             # Scaling factor for initial velocities.
+BALL_RADIUS = 0.02                     # Radius of balls.
+RWALL = L                              # Position of rightmost wall.
+TWALL = L                              # Position of topmost wall.
+SPEEDF = 0.3                           # Scaling factor for initial velocities.
 g = 0 * (9.8 / 10) * np.array([0, -1]) # Acceleration due to gravity.
 
 FF = 1                # Fast forward factor
-FPS = 80              # Frames per second of animation.
+FPS = 30              # Frames per second of animation.
 FRAME_DELTA = 1/(FPS) # Time between frames.
 
 # Matrix for rotating 2d vector by 90 degrees.
@@ -26,13 +27,13 @@ rot90 = np.zeros((2,2))
 rot90[0, 1] = -1
 rot90[1, 0] = 1
 
-# Reflect about x-axis.
-x_refl = np.zeros((2,2))
-x_refl[0, 0] = -1
-x_refl[1, 1] = 1
+# Reflect about y-axis.
+y_refl = np.zeros((2,2))
+y_refl[0, 0] = -1
+y_refl[1, 1] = 1
 
-# Reflect about y-axis
-y_refl = -1.0 * x_refl
+# Reflect about x-axis
+x_refl = -1.0 * y_refl
 
 def collision1d(m1, v1, m2, v2):
     """ Returns final velocities in a 1d elastic collision.
@@ -112,8 +113,8 @@ def left_wall_collision(ball, wall_coord, dt):
     delta_x_coord = wall_coord + r - x[0]
     deltat = delta_x_coord / v[0] 
     
-    # Reflect velocity about the x-axis.
-    vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
+    # Reflect velocity about the y-axis.
+    vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
@@ -131,8 +132,8 @@ def right_wall_collision(ball, wall_coord, dt):
     delta_x_coord = wall_coord - r - x[0]
     deltat = delta_x_coord / v[0] 
     
-    # Reflect velocity about x-axis.
-    vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
+    # Reflect velocity about y-axis.
+    vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
@@ -150,8 +151,8 @@ def top_wall_collision(ball, wall_coord, dt):
     delta_y_coord = wall_coord - r - x[1]
     deltat = delta_y_coord / v[1] 
     
-    # Reflect velocity about y-axis.
-    vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
+    # Reflect velocity about x-axis.
+    vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
@@ -169,8 +170,8 @@ def bot_wall_collision(ball, wall_coord, dt):
     delta_y_coord = wall_coord + r - x[1]
     deltat = delta_y_coord / v[1] 
     
-    # Reflect velocity about y-axis.
-    vf = v[0] * y_refl[:, 0] + v[1] * y_refl[:, 1]
+    # Reflect velocity about x-axis.
+    vf = v[0] * x_refl[:, 0] + v[1] * x_refl[:, 1]
     
     ball.vel[:] = vf
     ball.pos[:] = x + (deltat) * v + (dt - deltat) * vf
@@ -197,8 +198,8 @@ class body:
 # Generate balls.
 balls = []
 for i in range(N):
-    balls.append(body(0.1, np.array([random.uniform(BALL_RADIUS, RWALL - BALL_RADIUS),
-                                     random.uniform(BALL_RADIUS, TWALL - BALL_RADIUS)]), 
+    balls.append(body(1 , np.array([random.uniform(BALL_RADIUS, RWALL - BALL_RADIUS),
+                                    random.uniform(BALL_RADIUS, TWALL - BALL_RADIUS)]), 
                                     SPEEDF * np.array([random.uniform(-1, 1),
                                                        random.uniform(-1, 1)]),
                                     BALL_RADIUS))      
@@ -218,8 +219,8 @@ images = [] # Stores artists to be updated during animation
 
 def init():
     global prevtime
-    ax.set_ylim(-0.5, TWALL + 0.5)
-    ax.set_xlim(-0.5, RWALL + 0.5)
+    ax.set_ylim(-0.05 * TWALL, 1.1 * TWALL)
+    ax.set_xlim(-0.05 * RWALL, 1.1 * RWALL)
     plt.gca().set_aspect('equal', adjustable='box')
     time_text.set_text('')
     
@@ -248,6 +249,12 @@ def update(frame):
     # Account for collisions.
     for i in range(len(balls)):
         b = balls[i]
+        for j in range(i + 1, len(balls)):
+            b2 = balls[j]
+            
+            if (np.dot(b.pos - b2.pos, b.pos - b2.pos) < (b.radius + b2.radius)**2):
+                ball_collision(b, b2, dt)
+
         if (b.pos[0] < b.radius):
             left_wall_collision(b, 0, dt)
             continue
@@ -260,12 +267,6 @@ def update(frame):
         elif (b.pos[1] < b.radius):
             bot_wall_collision(b, 0, dt)
             continue
-        
-        for j in range(i + 1, len(balls)):
-            b2 = balls[j]
-            
-            if (np.dot(b.pos - b2.pos, b.pos - b2.pos) < (b.radius + b2.radius)**2):
-                ball_collision(b, b2, dt)
     return images
 
 ani = FuncAnimation(fig, update, frames=1000, interval=1000 * FRAME_DELTA , init_func=init,
